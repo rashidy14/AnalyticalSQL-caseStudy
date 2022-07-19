@@ -1,0 +1,87 @@
+----Query 1
+select distinct X.year, round(sum(sale) over(partition by X.year)) total_sales
+from (select invoiceno , Extract(year from cast(invoicedate as date)) as year,
+	  (unitprice * quantity) as sale 
+from online_retail
+where quantity > 0 and unitprice > 0) X
+order by 1 
+
+-----Query 2
+select distinct X.country, round(sum(sale) over(partition by X.country)) country_net_sales
+from (select invoiceno , Extract(year from cast(invoicedate as date)) as year, 
+	  (unitprice * quantity) as sale , country
+from online_retail
+where quantity > 0 and unitprice > 0) X 
+order by 2 desc
+limit 10
+
+------Query 3 
+
+select Y.country , Y.year , round(Y.country_net_sales) country_net_sales ,
+round(Y.country_yearly_sales) country_yearly_sales,
+avg(Y.country_yearly_sales/Y.country_net_sales)
+over(partition by Y.country order by Y.country_yearly_sales rows between current row and current row)*100  as sales_pct
+from(select distinct X.country, X.year ,sum(sale) over(partition by X.country ) country_net_sales
+, sum(sale) over(partition by X.country ,X.year) country_yearly_sales
+from (select invoiceno , Extract(year from cast(invoicedate as date)) as year, 
+	  (unitprice * quantity) as sale , country
+from online_retail
+where quantity > 0 and unitprice > 0) X ) Y
+order by 3 desc , 2
+
+-----Query 4 
+
+select distinct stockcode, description, sum(quantity) over(partition by stockcode) quantity_sold
+from online_retail
+where quantity >= 0
+order by 3 desc
+limit 5
+
+-----Query 5
+
+select X.country , X.stockcode, X.quantity_sold, X.Rank
+from (select distinct S.country, S.stockcode , S.quantity_sold 
+, dense_rank() over(partition by country order by S.quantity_sold desc) Rank
+from( select distinct stockcode,country, description, sum(quantity) over(partition by country, stockcode) quantity_sold
+from online_retail
+where quantity >= 0) S
+order by 1 ,3 desc ) X
+where X.Rank in(1,2,3)
+
+------Query 6
+select distinct X.year, count(X.invoiceno) over(partition by X.year) number_of_orders
+from (select distinct invoiceno , Extract(year from cast(invoicedate as date)) as year  
+from online_retail) X
+order by 1
+
+
+------Query 7
+
+select  distinct X.country , X.year, count(*) over(partition by X.year, X.country) number_of_orders
+from (select distinct invoiceno , Extract(year from cast(invoicedate as date)) as year , country 
+from online_retail) X
+order by 1 , 2 
+
+-------Query 8 
+select customerid , number_of_purchasisng , rank() over(order by number_of_purchasisng desc)
+from 
+(with freq As (
+select customerid , count(distinct invoiceno) as frequency
+from online_retail
+group by customerid
+having customerid != '') 
+select distinct customerid, freq.frequency as number_of_purchasisng 
+from online_retail O Join freq using(customerid)
+order by 2 desc) X
+
+-----Query 9 
+select Y.customerid , round(Y.customer_net_sales) customer_net_sales  , rank() 
+over(order by Y.customer_net_sales desc)
+from (select distinct X.customerid, sum(sales) over(partition by X.customerid ) customer_net_sales
+from (select invoiceno, (unitprice * quantity) as sales , customerid
+from online_retail
+where quantity > 0 and unitprice > 0 and customerid !='') X ) Y
+
+
+
+
